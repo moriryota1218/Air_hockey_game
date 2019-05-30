@@ -14,6 +14,16 @@ var puck;
 
 var paddle1;
 var paddle2;
+
+// スコアを記録する変数を作成
+var score1 = 0;
+var score2 = 0;
+
+var BoardDirection = {
+  Left: 0,
+  Right: 1
+};
+
 // パックオブジェクトの作成
 function Puck(x, y) {
   var self = this;
@@ -45,8 +55,8 @@ function Puck(x, y) {
 
     // 右の壁の跳ね返り
     if (self.x + self.radius > boardWidth) {
-      self.vel.x *= -1;
-      self.x = boardWidth - self.radius;
+        self.reset(BoardDirection.Right);
+        score1 ++;
     }
 
     // 上の壁の跳ね返り
@@ -57,8 +67,8 @@ function Puck(x, y) {
 
     // 左の壁の跳ね返り
     if (self.x - self.radius < 0) {
-      self.vel.x *= -1;
-      self.x = self.radius;
+        self.reset(BoardDirection.Left);
+        score2 ++;
     }
 
   }
@@ -75,11 +85,40 @@ function Puck(x, y) {
     context.fill();
   }
 
-  self.collidesWithPaddle = function (paddle) {
-    var closestPoint = {
-      x: clamp(self.x, paddle.x - paddle.halfWidth, paddle.x + paddle.halfWidth),
-      y: clamp(self.y, paddle.y - paddle.halfHeight, paddle.y + paddle.halfHeight),
+  // パックの再配置
+  self.reset = function (boardDirection) {
+    self.x = boardWidth / 2;
+    self.y = boardHeight /2;
+
+    var randomPoint;
+
+  // パックの進行方向
+    if (boardDirection === BoardDirection.Left) {
+
+      randomPoint = {
+        x: 0,
+        y: Math.random() * boardHeight
+      };
+
+    } else if (boardDirection === BoardDirection.Right) {
+
+      randomPoint = {
+        x: boardWidth,
+        y: Math.random() * boardHeight
+      };
+    }
+
+    self.vel = {
+      x: randomPoint.x - self.x,
+      y: randomPoint.y - self.y
     };
+
+    // 向きを正規化する
+    normalize(self.vel);
+  }
+
+  self.collidesWithPaddle = function (paddle) {
+    var closestPoint = self.closestPointOnPaddle(paddle);
 
     var diff = {
       x: self.x - closestPoint.x,
@@ -88,6 +127,46 @@ function Puck(x, y) {
     var length = Math.sqrt(diff.x * diff.x + diff.y * diff.y);
 
     return length < self.radius;
+  };
+
+  // 最も近い点を取得する
+  self.closestPointOnPaddle = function (paddle) {
+    return {
+      x: clamp(self.x, paddle.x - paddle.halfWidth, paddle.x + paddle.halfWidth),
+      y: clamp(self.y, paddle.y - paddle.halfHeight, paddle.y + paddle.halfHeight),
+    };
+  };
+
+  // 簡単な跳ね返りを作る
+  self.handlePaddleCollision = function (paddle) {
+    var collisionHappened = false;
+
+    while (self.collidesWithPaddle(paddle)) {
+      self.x -= self.vel.x;
+      self.y -= self.vel.y;
+
+      collisionHappened = true;
+    }
+
+    if(collisionHappened) {
+      var closestPoint = self.closestPointOnPaddle(paddle);
+      // 法線ベクトルの計算
+      var normal = {
+        x: self.x - closestPoint.x,
+        y: self.y -closestPoint.y
+      };
+
+      // 単位ベクトル化
+      normalize(normal);
+
+      // 法線を使った跳ね返り
+      var dotProd = dot(self.vel, normal);
+
+      self.vel.x = self.vel.x - (2 * dotProd * normal.x);
+      self.vel.y = self.vel.y - (2 * dotProd * normal.y);
+
+      // self.vel.x *= -1;
+    }
   };
 }
 
@@ -215,6 +294,11 @@ function init() {
 
   // 現在時刻のミリ秒を取得
   lastTime = performance.now();
+
+  // ゲーム終了を知らせる関数
+  function gameIsOver() {
+    return score1 >= 11 || score2 >= 11;
+  }
 }
 
 //フレーム毎のゲーム状態を更新する機能
@@ -223,7 +307,23 @@ function update(dt) {
   paddle1.update(dt);
   paddle2.update(dt);
 
+  puck.handlePaddleCollision(paddle1);
+  puck.handlePaddleCollision(paddle2);
 }
+
+  // スコアを描画する
+  function drawScore(context, score, boardDirection) {
+    var score = String(score);
+    context.font = "20px Sans";
+    var width = context.measureText(score).width;
+    var centerOffset = 60;
+
+    if(boardDirection === BoardDirection.Left) {
+      context.fillText(score, (boardWidth / 2) - width - centerOffset, 30);
+    } else {
+      context.fillText(score, (boardWidth / 2) + centerOffset, 30);
+    }
+  }
 
 // ゲームの状態をキャンバスに書き出す機能
 function render(dt) {
@@ -232,6 +332,9 @@ function render(dt) {
   // パドルを描画する
   paddle1.draw(context);
   paddle2.draw(context);
+
+  drawScore(context, score1, BoardDirection.Left);
+  drawScore(context, score2, BoardDirection.Right);
 }
 
 // main関数でupdateとrender関数を呼び出す
