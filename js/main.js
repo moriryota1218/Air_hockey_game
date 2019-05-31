@@ -32,7 +32,7 @@ function Puck(x, y) {
   self.x = x;
   self.y = y;
   // 速度変数の追加
-  self.speed = 0.5;
+  self.speed = 0.3;
   self.vel = {
     x: 0.2,
     y: 0.1
@@ -55,8 +55,13 @@ function Puck(x, y) {
 
     // 右の壁の跳ね返り
     if (self.x + self.radius > boardWidth) {
-        self.reset(BoardDirection.Right);
-        score1 ++;
+        self.vel.x *= -1;
+        self.x = boardWidth -self.radius;
+
+        if(!gameIsOver()) {
+          score1++;
+          self.reset(BoardDirection.Right);
+        }
     }
 
     // 上の壁の跳ね返り
@@ -67,8 +72,13 @@ function Puck(x, y) {
 
     // 左の壁の跳ね返り
     if (self.x - self.radius < 0) {
-        self.reset(BoardDirection.Left);
-        score2 ++;
+        self.vel.x *= -1;
+        self.x = self.radius;
+
+        if(!gameIsOver()) {
+          score2++;
+          self.reset(BoardDirection.Left);
+        }
     }
 
   }
@@ -89,7 +99,7 @@ function Puck(x, y) {
   self.reset = function (boardDirection) {
     self.x = boardWidth / 2;
     self.y = boardHeight /2;
-
+    self.speed = 0.3;
     var randomPoint;
 
   // パックの進行方向
@@ -164,8 +174,7 @@ function Puck(x, y) {
 
       self.vel.x = self.vel.x - (2 * dotProd * normal.x);
       self.vel.y = self.vel.y - (2 * dotProd * normal.y);
-
-      // self.vel.x *= -1;
+      self.speed += 0.03;
     }
   };
 }
@@ -238,6 +247,11 @@ function Paddle(x, upKeyCode, downKeyCode) {
       self.halfHeight * 2
     );
   };
+
+  // reset関数の追加
+  self.reset = function () {
+    self.y = boardHeight / 2;
+  };
 }
 
 // 円の中心と最も近い長方形の外周の点を計算する
@@ -279,6 +293,11 @@ function init() {
 
     paddle1.onKeyDown(e.keyCode);
     paddle2.onKeyDown(e.keyCode);
+
+    // Enterキーでゲームをリセットする
+    if (e.keyCode === 13 && gameIsOver()) {
+      resetGame();
+    }
   });
 
   // keyupイベントの取得
@@ -294,12 +313,23 @@ function init() {
 
   // 現在時刻のミリ秒を取得
   lastTime = performance.now();
-
+}
   // ゲーム終了を知らせる関数
   function gameIsOver() {
     return score1 >= 11 || score2 >= 11;
   }
-}
+
+  // ゲームの初期化とスコアを０にリセットする
+  function resetGame() {
+    paddle1.reset();
+    paddle2.reset();
+
+    puck.reset(BoardDirection.Left);
+
+    score1 = 0;
+    score2 = 0;
+
+  }
 
 //フレーム毎のゲーム状態を更新する機能
 function update(dt) {
@@ -325,6 +355,14 @@ function update(dt) {
     }
   }
 
+  //ゲームオーバー時のメッセージを表示する
+  function drawCenteredText(context, text, y) {
+    context.font = "20px Sans";
+    var width = context.measureText(text).width;
+
+    context.fillText(text,(boardWidth / 2 ) - (width / 2), y);
+  }
+
 // ゲームの状態をキャンバスに書き出す機能
 function render(dt) {
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -335,7 +373,13 @@ function render(dt) {
 
   drawScore(context, score1, BoardDirection.Left);
   drawScore(context, score2, BoardDirection.Right);
-}
+
+  // ゲームオーバーとリスタートのテキストを表示
+  if (gameIsOver()) {
+    drawCenteredText(context, "Game Over", (boardHeight / 2));
+    drawCenteredText(context, "Press Enter to Retry", (boardHeight / 2) + 30);
+  }
+};
 
 // main関数でupdateとrender関数を呼び出す
 function main() {
